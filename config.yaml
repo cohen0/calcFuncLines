@@ -1,0 +1,4 @@
+blacklistfiles: ["idmap.go","debug.go","checker.go","loader.go","task.go","*.pb.go","*.seg.go"]
+blacklistdirs: ["vendor", ".git"]
+path: "E:\\go\\src\\gitlab.woool.com\\evolution\\gameserver\\"
+ranknum: 10
