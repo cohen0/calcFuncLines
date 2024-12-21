@@ -28,35 +28,28 @@ func (s SortReport) Len() int {
 	return len(s)
 }
 
-func (s SortReport) append(line int, path, funcname string) {
-	reports = append(reports, Report{
-		Line: line,
-		Path: path,
-		Func: funcname,
-	})
-
+func (s SortReport) append(r Report) {
+	reports = append(reports, r)
 	sort.Sort(SortReport(reports))
 }
 
-func (s *SortReport) TryInsert(line int, path, funcname string) {
+func (s *SortReport) TryInsert(r Report) {
 	if global_conf.RankNum == 0 {
 		return
 	}
 
 	if s.Len() < global_conf.RankNum {
-		s.append(line, path, funcname)
+		s.append(r)
 		return
 	}
 
 	min := (*s)[s.Len()-1].Line
 
-	if line > min {
+	if r.Line > min {
 		(*s) = (*s)[:s.Len()-1]
-		s.append(line, path, funcname)
+		s.append(r)
 		return
 	}
-
-	return
 }
 
 func (s SortReport) Print() {

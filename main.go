@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"flag"
+	"sync/atomic"
 
 	"os"
 	"path/filepath"
@@ -11,17 +11,11 @@ import (
 )
 
 var (
-	fileNumber int
-	funcNumber int
-	inpath     string
+	fileNumber int32
+	funcNumber int32
+	sumLines   int32
 	begin      time.Time
-	sumLines   int
 )
-
-func init() {
-	flag.StringVar(&inpath, "path", "E:\\workspace\\test\\", "input path")
-	begin = time.Now()
-}
 
 func getFuncName(str string) string {
 	arr := strings.Split(str, "func ")
@@ -47,19 +41,22 @@ func blacklist(path string) bool {
 	return false
 }
 
-func processFile(path string) {
+func ProcessFile(param interface{}) []Report {
+	path := param.(string)
+	var dates []Report
+
 	if blacklist(path) {
-		return
+		return nil
 	}
 
 	file, err := os.Open(path)
 	if err != nil {
 		println(err)
-		return
+		return nil
 	}
 	defer file.Close()
 
-	fileNumber++
+	atomic.AddInt32(&fileNumber, 1)
 
 	scanner := bufio.NewScanner(file)
 	count := 0
@@ -88,19 +85,19 @@ func processFile(path string) {
 			continue
 		}
 
-		sumLines++
+		atomic.AddInt32(&sumLines, 1)
 
 		//func start
 		if strings.Index(line, "func ") == 0 {
 			funcname = getFuncName(line)
 			record = true
-			funcNumber++
+			atomic.AddInt32(&funcNumber, 1)
 		}
-
 		//func end
-		if record == true && strings.IndexByte(line, '}') == 0 {
+		if record && strings.IndexByte(line, '}') == 0 {
 			record = false
-			reports.TryInsert(count-1, path, funcname)
+			r := Report{count - 1, path, funcname}
+			dates = append(dates, r)
 			count = 0
 		}
 
@@ -109,7 +106,7 @@ func processFile(path string) {
 		}
 	}
 
-	return
+	return dates
 }
 
 func blacklistDir(path string) bool {
@@ -122,7 +119,8 @@ func blacklistDir(path string) bool {
 	return false
 }
 
-func processDir(path string) {
+func processDir(path string, pool *TaskPool) {
+	var err error
 	file, err := os.Open(path)
 	if err != nil {
 		println(err)
@@ -130,7 +128,7 @@ func processDir(path string) {
 	}
 	defer file.Close()
 
-	fileInfo, err := file.Stat()
+	fileInfo, _ := file.Stat()
 	if !fileInfo.IsDir() {
 		println("input error: path is not a dir!!")
 		return
@@ -148,16 +146,19 @@ func processDir(path string) {
 				continue
 			}
 			subpath := filepath.Join(path, info.Name())
-			processDir(subpath)
+			processDir(subpath, pool)
 			continue
 		}
 
-		processFile(filepath.Join(path, info.Name()))
+		file := filepath.Join(path, info.Name())
+		pool.AddTask(file, ProcessFile)
 	}
 }
 
 func main() {
-	flag.Parse()
-	processDir(global_conf.Path)
+	pool := NewTaskPool()
+	go pool.Run()
+	processDir(global_conf.Path, pool)
+	pool.Stop()
 	reports.Print()
 }
